@@ -20,7 +20,7 @@ import { theme } from './src/theme/theme';
 const Stack = createNativeStackNavigator();
 
 // Set to true to enable splash screen, onboarding, and home screen
-const SHOW_FULL_FLOW = false;
+const SHOW_FULL_FLOW = true;
 
 export default function App() {
   const [showSplash, setShowSplash] = useState(SHOW_FULL_FLOW);
