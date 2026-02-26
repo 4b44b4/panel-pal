@@ -7,7 +7,7 @@ import { SafeAreaProvider } from 'react-native-safe-area-context';
 
 import { HomeScreen } from './src/screens/HomeScreen';
 import { AlignmentScreen } from './src/screens/AlignmentScreen';
-import { SimpleAlignmentScreen } from './src/screens/SimpleAlignmentScreen';
+import { StarlinkAlignmentScreen } from './src/screens/StarlinkAlignmentScreen';
 import { ResultsScreen } from './src/screens/ResultsScreen';
 import { SettingsScreen } from './src/screens/SettingsScreen';
 import { OnboardingScreen } from './src/screens/OnboardingScreen';
@@ -73,7 +73,7 @@ export default function App() {
         >
           <Stack.Screen name="Home" component={HomeScreen} />
           <Stack.Screen name="Alignment" component={AlignmentScreen} />
-          <Stack.Screen name="SimpleAlignment" component={SimpleAlignmentScreen} />
+          <Stack.Screen name="SimpleAlignment" component={StarlinkAlignmentScreen} />
           <Stack.Screen name="Results" component={ResultsScreen} />
           <Stack.Screen name="Settings" component={SettingsScreen} />
         </Stack.Navigator>
