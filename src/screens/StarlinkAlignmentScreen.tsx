@@ -32,7 +32,10 @@ const DOT_R = COMPASS_SIZE * 0.39;
 const LABEL_R = COMPASS_SIZE * 0.47;
 const PANEL_W = COMPASS_SIZE * 0.45;
 const PANEL_H = COMPASS_SIZE * 0.32;
-const ARROW_R = DOT_R * 1.08;
+// Target is slightly larger than panel so both are visible simultaneously
+const TARGET_W = PANEL_W * 1.18;
+const TARGET_H = PANEL_H * 1.18;
+const ARROW_R = DOT_R * 1.08; // sits between dot ring and label ring
 const BASE_TILT = 58; // isometric view angle
 
 // ============================================
@@ -114,8 +117,16 @@ function CompassRing() {
 
 // ============================================
 // ROTATION ARROW - curved arc with arrowhead
-// Matches Starlink style: arc near compass bottom,
-// curving toward the direction the user should rotate.
+//
+// Uses direct screen coordinates (θ measured clockwise from right,
+// y-down SVG space) so the arc shape is always predictable.
+//
+// Both arrows sweep a ~130° arc through the BOTTOM of the compass
+// (near the N label). The arrowhead sits at the end of the arc and
+// points in the direction of intended rotation.
+//
+//   CW  (rotate right): arc bottom-left → bottom-right, tip points right+up
+//   CCW (rotate left) : arc bottom-right → bottom-left, tip points left+up
 // ============================================
 function RotationArrow({
   direction,
@@ -127,41 +138,54 @@ function RotationArrow({
   if (!visible) return null;
 
   const isCW = direction === 'cw';
+  const r = ARROW_R;
 
-  // CW arrow: bottom-left → right (user rotates right)
-  // CCW arrow: bottom-right → left (user rotates left)
-  const startH = isCW ? 15 : 345;
-  const endH = isCW ? 290 : 70;
+  // Screen angles (θ, clockwise from right, SVG y-down)
+  // θ=90°  → directly below centre  (compass bottom / N label)
+  // θ=155° → bottom-left of compass
+  // θ=25°  → bottom-right of compass
+  const θ_start = isCW ? 155 : 25;
+  const θ_end   = isCW ? 25  : 155;
 
-  const start = toXY(startH, ARROW_R);
-  const end = toXY(endH, ARROW_R);
+  const toSVG = (deg: number) => ({
+    x: CX + r * Math.cos((deg * Math.PI) / 180),
+    y: CY + r * Math.sin((deg * Math.PI) / 180),
+  });
 
-  // CW screen sweep from bottom-left to right = sweep-flag 1
-  // CCW screen sweep from bottom-right to left = sweep-flag 0
-  const sweep = isCW ? 1 : 0;
+  const start = toSVG(θ_start);
+  const end   = toSVG(θ_end);
+
+  // CW:  travel from 155→25 by DECREASING θ (screen CCW, sweep=0)
+  //       → arc passes through θ=90 (bottom) ✓
+  // CCW: travel from 25→155 by INCREASING θ (screen CW, sweep=1)
+  //       → arc passes through θ=90 (bottom) ✓
+  const sweep = isCW ? 0 : 1;
 
   const arcD = [
     `M ${start.x.toFixed(1)} ${start.y.toFixed(1)}`,
-    `A ${ARROW_R.toFixed(1)} ${ARROW_R.toFixed(1)} 0 0 ${sweep}`,
+    `A ${r.toFixed(1)} ${r.toFixed(1)} 0 0 ${sweep}`,
     `${end.x.toFixed(1)} ${end.y.toFixed(1)}`,
   ].join(' ');
 
-  // Arrowhead tangent at end point
-  const alpha = ((endH - 180) * Math.PI) / 180;
-  // CW: motion decreases heading → tangent = (-cos, -sin)
-  // CCW: motion increases heading → tangent = (cos, sin)
-  const tx = isCW ? -Math.cos(alpha) : Math.cos(alpha);
-  const ty = isCW ? -Math.sin(alpha) : Math.sin(alpha);
+  // Tangent direction at the end point (the direction of travel along the arc)
+  // CW (decreasing θ):  tangent = ( sin θ_end, -cos θ_end)  → right+up at θ=25°
+  // CCW (increasing θ): tangent = (-sin θ_end,  cos θ_end)  → left+up  at θ=155°
+  const endRad = (θ_end * Math.PI) / 180;
+  const tx = isCW ?  Math.sin(endRad) : -Math.sin(endRad);
+  const ty = isCW ? -Math.cos(endRad) :  Math.cos(endRad);
   const px = -ty;
-  const py = tx;
+  const py =  tx;
   const aLen = 15;
-  const aW = 7;
+  const aW   = 8;
 
   const pts = [
     `${end.x.toFixed(1)},${end.y.toFixed(1)}`,
     `${(end.x - tx * aLen + px * aW).toFixed(1)},${(end.y - ty * aLen + py * aW).toFixed(1)}`,
     `${(end.x - tx * aLen - px * aW).toFixed(1)},${(end.y - ty * aLen - py * aW).toFixed(1)}`,
   ].join(' ');
+
+  // Amber/orange colour so the arrow stands out from the white compass dots
+  const arrowColor = 'rgba(255, 200, 60, 0.95)';
 
   return (
     <Svg
@@ -171,12 +195,12 @@ function RotationArrow({
     >
       <Path
         d={arcD}
-        stroke="rgba(255,255,255,0.88)"
-        strokeWidth={3.5}
+        stroke={arrowColor}
+        strokeWidth={4}
         fill="none"
         strokeLinecap="round"
       />
-      <Polygon points={pts} fill="rgba(255,255,255,0.88)" />
+      <Polygon points={pts} fill={arrowColor} />
     </Svg>
   );
 }
@@ -231,7 +255,12 @@ export function StarlinkAlignmentScreen({ navigation, route }: any) {
 
   // Map deviations to visual transforms (clamped)
   const tiltOffset = Math.max(-30, Math.min(30, tiltDiff * 1.2));
-  const rotOffset = Math.max(-25, Math.min(25, azimuthDiff * 0.3));
+  const rotOffset  = Math.max(-25, Math.min(25, azimuthDiff * 0.3));
+
+  // azimuthDiff > 0 → panel points too far clockwise → user must rotate LEFT (CCW)
+  // azimuthDiff < 0 → panel points too far counter-clockwise → user must rotate RIGHT (CW)
+  const arrowDirection = azimuthDiff > 0 ? 'ccw' : 'cw';
+  const rotateLabel    = azimuthDiff > 0 ? 'Rotate your panel to the left' : 'Rotate your panel to the right';
 
   const title = isAligned
     ? 'Panel is aligned'
@@ -245,7 +274,9 @@ export function StarlinkAlignmentScreen({ navigation, route }: any) {
     ? 'Your solar panel is pointed in the correct direction.'
     : needsTilt
       ? 'Make sure the panel is mounted correctly or is set up on flat ground.'
-      : 'Rotate your panel toward the optimal sun direction.';
+      : needsRotation
+        ? rotateLabel
+        : 'Almost there — make small adjustments.';
 
   return (
     <View style={s.root}>
@@ -270,31 +301,34 @@ export function StarlinkAlignmentScreen({ navigation, route }: any) {
             {/* Compass dots & labels */}
             <CompassRing />
 
-            {/* Target outline (ideal position, stays fixed) */}
+            {/* ── TARGET OUTLINE (fixed at optimal orientation) ──────────
+                Larger than the panel so both are visible simultaneously.
+                Blue when not aligned, white glow when aligned. */}
             <View style={s.anchor}>
               <View
                 style={[
                   s.target,
                   {
-                    width: PANEL_W,
-                    height: PANEL_H,
+                    width:  TARGET_W,
+                    height: TARGET_H,
                     borderColor: isAligned
-                      ? 'rgba(255,255,255,0.85)'
-                      : 'rgba(140,140,140,0.4)',
+                      ? 'rgba(255,255,255,0.9)'
+                      : 'rgba(80, 180, 255, 0.85)',
+                    shadowColor: isAligned ? '#fff' : '#50b4ff',
+                    shadowOpacity: 0.6,
                   },
                 ]}
               />
             </View>
 
-            {/* Panel (moves with deviation) */}
+            {/* ── PANEL (moves with device orientation) ──────────────── */}
             <View style={s.anchor}>
               <View
                 style={[
                   s.panel,
                   {
-                    width: PANEL_W,
+                    width:  PANEL_W,
                     height: PANEL_H,
-                    borderColor: isAligned ? '#fff' : 'rgba(255,255,255,0.8)',
                     shadowOpacity: isAligned ? 0.7 : 0,
                     transform: [
                       { perspective: 800 },
@@ -306,10 +340,9 @@ export function StarlinkAlignmentScreen({ navigation, route }: any) {
               />
             </View>
 
-            {/* Arrow */}
-            {/* Arrow points in the correction direction */}
+            {/* ── ROTATION ARROW ─────────────────────────────────────── */}
             <RotationArrow
-              direction={azimuthDiff > 0 ? 'ccw' : 'cw'}
+              direction={arrowDirection}
               visible={needsRotation && !isAligned}
             />
           </View>
@@ -364,7 +397,7 @@ const s = StyleSheet.create({
     letterSpacing: -0.3,
   },
   subtitle: {
-    color: 'rgba(255,255,255,0.45)',
+    color: 'rgba(255,255,255,0.55)',
     fontSize: 15,
     textAlign: 'center',
     marginTop: 10,
@@ -377,7 +410,7 @@ const s = StyleSheet.create({
     alignItems: 'center',
   },
   vizBox: {
-    width: COMPASS_SIZE,
+    width:  COMPASS_SIZE,
     height: COMPASS_SIZE,
   },
   anchor: {
@@ -386,13 +419,17 @@ const s = StyleSheet.create({
     alignItems: 'center',
   },
   target: {
-    borderWidth: 2,
+    borderWidth: 2.5,
+    borderRadius: 3,
     backgroundColor: 'transparent',
+    shadowOffset: { width: 0, height: 0 },
+    shadowRadius: 8,
+    elevation: 4,
     transform: [{ perspective: 800 }, { rotateX: `${BASE_TILT}deg` }],
   },
   panel: {
     backgroundColor: 'rgba(215,215,220,0.93)',
-    borderWidth: 2.5,
+    borderWidth: 0,
     shadowColor: '#fff',
     shadowOffset: { width: 0, height: 0 },
     shadowRadius: 20,
