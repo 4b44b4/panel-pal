@@ -26,8 +26,13 @@ const REMOTE_PANEL_EXAMPLE = {
   description: 'Solar lights with a separate panel connected by cable. The panel can be angled for optimal sun exposure while the light sits in shade—common in spot lights and security lights.',
 };
 
+type UIStyle = 'sun' | 'starlink';
+
 export function HomeScreen({ navigation }: any) {
   const [exampleModal, setExampleModal] = useState<'fixed' | 'remote' | null>(null);
+  const [uiStyle, setUIStyle] = useState<UIStyle>('starlink');
+
+  const alignmentRoute = uiStyle === 'starlink' ? 'StarlinkAlignment' : 'SimpleAlignment';
 
   return (
     <SafeAreaView style={styles.container}>
@@ -52,11 +57,36 @@ export function HomeScreen({ navigation }: any) {
           <Text style={styles.tagline}>Optimize your solar gain</Text>
         </View>
 
+        {/* ── UI Style toggle (temporary dev option) ─────────────── */}
+        <View style={styles.toggleWrap}>
+          <Text style={styles.toggleLabel}>Interface</Text>
+          <View style={styles.togglePill}>
+            <TouchableOpacity
+              style={[styles.toggleOption, uiStyle === 'sun' && styles.toggleOptionActive]}
+              onPress={() => setUIStyle('sun')}
+              activeOpacity={0.7}
+            >
+              <Text style={[styles.toggleOptionText, uiStyle === 'sun' && styles.toggleOptionTextActive]}>
+                ☀️  Classic
+              </Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={[styles.toggleOption, uiStyle === 'starlink' && styles.toggleOptionActive]}
+              onPress={() => setUIStyle('starlink')}
+              activeOpacity={0.7}
+            >
+              <Text style={[styles.toggleOptionText, uiStyle === 'starlink' && styles.toggleOptionTextActive]}>
+                🛰  Starlink
+              </Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+
         <View style={styles.buttonContainer}>
           <View style={styles.optionButton}>
             <TouchableOpacity
               style={styles.optionButtonContent}
-              onPress={() => navigation.navigate('SimpleAlignment', { panelType: 'fixed' })}
+              onPress={() => navigation.navigate(alignmentRoute, { panelType: 'fixed' })}
               activeOpacity={0.8}
             >
               <Text style={styles.optionButtonText}>Fixed Panel</Text>
@@ -74,7 +104,7 @@ export function HomeScreen({ navigation }: any) {
           <View style={styles.optionButton}>
             <TouchableOpacity
               style={styles.optionButtonContent}
-              onPress={() => navigation.navigate('SimpleAlignment', { panelType: 'remote' })}
+              onPress={() => navigation.navigate(alignmentRoute, { panelType: 'remote' })}
               activeOpacity={0.8}
             >
               <Text style={styles.optionButtonText}>Remote Panel</Text>
@@ -192,6 +222,42 @@ const styles = StyleSheet.create({
   tagline: {
     fontSize: 16,
     color: theme.colors.textSecondary,
+  },
+  toggleWrap: {
+    alignItems: 'center',
+    marginBottom: 24,
+  },
+  toggleLabel: {
+    fontSize: 12,
+    color: theme.colors.textSecondary,
+    letterSpacing: 0.8,
+    textTransform: 'uppercase',
+    marginBottom: 8,
+  },
+  togglePill: {
+    flexDirection: 'row',
+    backgroundColor: theme.colors.surface,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: theme.colors.surfaceBorder,
+    padding: 4,
+  },
+  toggleOption: {
+    paddingVertical: 8,
+    paddingHorizontal: 20,
+    borderRadius: 9,
+  },
+  toggleOptionActive: {
+    backgroundColor: theme.colors.primary,
+  },
+  toggleOptionText: {
+    fontSize: 14,
+    fontWeight: '500',
+    color: theme.colors.textSecondary,
+  },
+  toggleOptionTextActive: {
+    color: theme.colors.textPrimary,
+    fontWeight: '600',
   },
   buttonContainer: {
     gap: 16,
